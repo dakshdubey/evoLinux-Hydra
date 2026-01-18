@@ -1,8 +1,8 @@
 #!/bin/bash
 # Author: Daksha Dubey
-# Author: Daksha Dubey
 # evo-ui - Production-grade Linux UI Customization Tool
-BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+BASE_DIR="$(cd "$(dirname "$SCRIPT_PATH")/.." && pwd)"
 LIB_DIR="$BASE_DIR/lib"
 
 # Load core modules
