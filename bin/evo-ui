@@ -1,0 +1,132 @@
+#!/bin/bash
+# Author: Daksha Dubey
+# Author: Daksha Dubey
+# evo-ui - Production-grade Linux UI Customization Tool
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LIB_DIR="$BASE_DIR/lib"
+
+# Load core modules
+source "$LIB_DIR/core.sh"
+source "$LIB_DIR/env.sh"
+source "$LIB_DIR/backup.sh"
+source "$LIB_DIR/gnome.sh"
+source "$LIB_DIR/kde.sh"
+source "$LIB_DIR/hyprland.sh"
+source "$LIB_DIR/picom.sh"
+
+show_help() {
+    echo -e "${PURPLE}evo-ui${NC} - Production-grade Linux UI Customization Tool"
+    echo ""
+    echo "Usage: evo-ui [command] [args]"
+    echo ""
+    echo "Commands:"
+    echo "  install        Install dependencies and setup environment"
+    echo "  apply [preset] Apply a UI preset (glass, matte, neon)"
+    echo "  restore        Restore original UI settings from backup"
+    echo "  status         Show current environment and UI status"
+    echo "  help           Show this help message"
+    echo ""
+    echo "Presets:"
+    echo "  glass          Glassmorphism, high transparency, high blur"
+    echo "  matte          Clean, opaque, subtle shadows, rounded corners"
+    echo "  neon           Vibrant colors, high contrast, glowing borders"
+}
+
+# Ensure we're not running as root unless we have to
+if [[ $EUID -eq 0 ]] && [[ "$1" != "install" ]]; then
+   log_error "This script should not be run as root (except for install). Use your normal user."
+   exit 1
+fi
+
+case "$1" in
+    status)
+        log_info "Detecting environment..."
+        get_env_info
+        ;;
+    install)
+        log_step "Installing dependencies..."
+        DE=$(detect_desktop)
+        SESSION=$(detect_session)
+        
+        log_info "Environment: $DE ($SESSION)"
+        
+        case "$DE" in
+            gnome)
+                log_info "Required: gsettings, dconf"
+                check_dep "gsettings"
+                check_dep "dconf"
+                ;;
+            kde)
+                log_info "Required: kwriteconfig5"
+                check_dep "kwriteconfig5"
+                ;;
+            hyprland)
+                log_info "Required: hyprland"
+                check_dep "hyprctl"
+                ;;
+        esac
+        
+        if [[ "$SESSION" == "x11" ]]; then
+            log_info "Required for X11: picom"
+            check_dep "picom"
+        fi
+        
+        log_success "All dependencies checked."
+        ;;
+    apply)
+        PRESET="$2"
+        if [[ -z "$PRESET" ]]; then
+            log_error "Please specify a preset: glass, matte, neon"
+            exit 1
+        fi
+        
+        # 1. Detect environment
+        DE=$(detect_desktop)
+        SESSION=$(detect_session)
+        
+        log_info "Platform: $DE on $SESSION"
+        
+        # 2. Safety Warning
+        log_warn "This will modify your UI settings. A backup will be created."
+        if ! confirm "Proceed with applying '$PRESET' preset?"; then
+            log_info "Cancelled."
+            exit 0
+        fi
+        
+        # 3. Create Backup
+        create_backup "$PRESET"
+        
+        # 4. Apply logic
+        case "$DE" in
+            gnome)
+                apply_gnome_preset "$PRESET"
+                ;;
+            kde)
+                apply_kde_preset "$PRESET"
+                ;;
+            hyprland)
+                apply_hyprland_preset "$PRESET"
+                ;;
+            *)
+                if [[ "$SESSION" == "x11" ]]; then
+                    apply_picom_preset "$PRESET"
+                else
+                    die "Unsupported environment: $DE / $SESSION"
+                fi
+                ;;
+        esac
+        
+        log_success "Applied '$PRESET' preset successfully."
+        ;;
+    restore)
+        log_warn "This will restore your UI settings from the latest backup."
+        if confirm "Proceed with restore?"; then
+            restore_backup
+        else
+            log_info "Cancelled."
+        fi
+        ;;
+    help|*)
+        show_help
+        ;;
+esac
